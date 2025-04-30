@@ -9,20 +9,24 @@ await page.setDefaultNavigationTimeout(TIMEOUT);
 await page.setDefaultTimeout(TIMEOUT);
 await page.setGeolocation({});
 
-console.log("Waiting for the page to load...");
-await page.goto("https://csrankings.org/", {
-  waitUntil: "domcontentloaded",
-  timeout: TIMEOUT,
-});
-
-await page.waitForSelector("#ranking");
-console.log("Page loaded!");
+await loadPage();
 
 await exitSponsor();
 
 await selectOnlyHCI();
 
 await loadAllRows();
+
+async function loadPage() {
+  console.log("Waiting for the page to load...");
+  await page.goto("https://csrankings.org/", {
+    waitUntil: "domcontentloaded",
+    timeout: TIMEOUT,
+  });
+
+  await page.waitForSelector("#ranking");
+  console.log("Page loaded!");
+}
 
 async function exitSponsor() {
   console.log("Searching for sponsor exit button...");
