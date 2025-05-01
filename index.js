@@ -1,4 +1,5 @@
-import puppeteer, { Mouse } from "puppeteer";
+import puppeteer from "puppeteer";
+import installMouseHelper from "puppeteer-mouse-helper";
 
 const TIMEOUT = 240 * 1000;
 const SPONSOR_DIALOG_SELECTOR = "#overlay-sponsor";
@@ -6,6 +7,7 @@ const SPONSOR_DIALOG_SELECTOR = "#overlay-sponsor";
 const browser = await puppeteer.launch({ headless: false, timeout: TIMEOUT });
 const [page] = await browser.pages();
 await page.setViewport({ width: 1280, height: 720 });
+await installMouseHelper(page, undefined, "width: 50px; height: 50px;");
 
 await loadPage();
 
@@ -45,7 +47,7 @@ async function exitSponsor() {
   try {
     console.log("Searching for sponsor exit button...");
     await page.waitForSelector(SPONSOR_DIALOG_SELECTOR, {
-      timeout: 2000,
+      timeout: 500,
       visible: true,
     });
 
@@ -108,17 +110,6 @@ async function loadAllRows() {
     initialRowCount,
   );
 
-  // const timeout = 5 * 1000;
-  // const pollInterval = 100;
-  //
-  // const start = Date.now();
-  // while (Date.now() - start < timeout) {
-  //   if (updatedRowCount > initialRowCount) {
-  //     break;
-  //   }
-  //   await new Promise((res) => setTimeout(res, pollInterval));
-  // }
-
   console.log(`All ${updatedRowCount} rows loaded!`);
 
   console.log("Scrolling to top...");
@@ -138,13 +129,35 @@ async function collectInstituteInformation(institute) {
   console.log("Clicked image in row. Waiting for chart to load...");
   await page.waitForFunction(
     (institute) => {
-      const nextRow = institute.nextElementSibling;
-      return nextRow && nextRow.querySelector("canvas.marks");
+      const found = !!institute.nextElementSibling?.querySelector("canvas");
+      console.log("Chart found:", found);
+      return found;
     },
-    {},
+    undefined,
     institute,
   );
   console.log("Chart loaded!");
 
-  await institute.mouse.moveTo(200, 200);
+  const chartInfo = await page.$eval("canvas", (canvas) => {
+    const boundingClientRect = canvas.getBoundingClientRect();
+    console.log({
+      boundingClientRect,
+    });
+    return {
+      width: boundingClientRect.width,
+      height: boundingClientRect.height,
+      left: boundingClientRect.left,
+      top: boundingClientRect.top,
+    };
+  });
+
+  console.log(chartInfo);
+
+  // target pixel: 435, 63
+
+  // Move mouse to the calculated position
+  await page.mouse.move(
+    chartInfo.left + 435,
+    chartInfo.top + (chartInfo.height - 63),
+  );
 }
