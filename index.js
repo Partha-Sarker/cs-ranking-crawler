@@ -1,13 +1,11 @@
-import puppeteer from "puppeteer";
+import puppeteer, { Mouse } from "puppeteer";
 
 const TIMEOUT = 240 * 1000;
+const SPONSOR_DIALOG_SELECTOR = "#overlay-sponsor";
 
-const browser = await puppeteer.launch({ headless: false });
-const page = await browser.newPage();
+const browser = await puppeteer.launch({ headless: false, timeout: TIMEOUT });
+const [page] = await browser.pages();
 await page.setViewport({ width: 1280, height: 720 });
-await page.setDefaultNavigationTimeout(TIMEOUT);
-await page.setDefaultTimeout(TIMEOUT);
-await page.setGeolocation({});
 
 await loadPage();
 
@@ -16,6 +14,21 @@ await exitSponsor();
 await selectOnlyHCI();
 
 await loadAllRows();
+
+const rows = await page.$$("#ranking tr");
+
+for (let i = 0; i < rows.length; i++) {
+  const institute = rows[i];
+  const tds = await institute.$$("td");
+
+  if (tds.length < 4) {
+    console.log(`Row ${i} skipped (only ${tds.length} <td>s).`);
+    continue;
+  }
+  await collectInstituteInformation(institute);
+
+  break;
+}
 
 async function loadPage() {
   console.log("Waiting for the page to load...");
@@ -29,15 +42,21 @@ async function loadPage() {
 }
 
 async function exitSponsor() {
-  console.log("Searching for sponsor exit button...");
-  const sponsor = await page.locator("#overlay-sponsor");
+  try {
+    console.log("Searching for sponsor exit button...");
+    await page.waitForSelector(SPONSOR_DIALOG_SELECTOR, {
+      timeout: 2000,
+      visible: true,
+    });
 
-  if (sponsor) {
-    console.log("Sponsor dialog found, clicking it...");
-    sponsor.setVisibility("hidden");
-    console.log("Sponsor successfully closed");
-  } else {
-    console.log("Exit dialog button not found");
+    console.log("Sponsor dialog found, closing...");
+    await page.$eval(SPONSOR_DIALOG_SELECTOR, (sponsorDialog) =>
+      sponsorDialog.remove(),
+    );
+    await page.waitForSelector(SPONSOR_DIALOG_SELECTOR, { hidden: true });
+    console.log("Sponsor dialog successfully closed");
+  } catch (error) {
+    console.log("Sponsor dialog not found");
   }
 }
 
@@ -77,19 +96,55 @@ async function loadAllRows() {
     tableParent.scrollTop = tableParent.scrollHeight;
   });
 
-  let currentRowCount = initialRowCount;
-  const timeout = 500;
-  const pollInterval = 100;
+  let updatedRowCount = initialRowCount;
 
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
-    console.log("Waiting for more rows to load...");
-    currentRowCount = await page.$$eval("#ranking tr", (rows) => rows.length);
-    if (currentRowCount > initialRowCount) {
-      break;
-    }
-    await new Promise((res) => setTimeout(res, pollInterval));
-  }
+  console.log("Waiting for more rows to load...");
+  await page.waitForFunction(
+    (initialRowCount) => {
+      updatedRowCount = document.querySelectorAll("#ranking tr").length;
+      return updatedRowCount > initialRowCount;
+    },
+    undefined,
+    initialRowCount,
+  );
 
-  console.log("All rows loaded!", currentRowCount);
+  // const timeout = 5 * 1000;
+  // const pollInterval = 100;
+  //
+  // const start = Date.now();
+  // while (Date.now() - start < timeout) {
+  //   if (updatedRowCount > initialRowCount) {
+  //     break;
+  //   }
+  //   await new Promise((res) => setTimeout(res, pollInterval));
+  // }
+
+  console.log(`All ${updatedRowCount} rows loaded!`);
+
+  console.log("Scrolling to top...");
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    const tableParent = document.querySelector("#ranking").parentElement;
+    tableParent.scrollTop = 0;
+  });
+}
+
+async function collectInstituteInformation(institute) {
+  const tds = await institute.$$("td");
+  const secondTd = tds[1];
+  const chartIcon = await secondTd.$('img[alt="closed chart"]');
+  chartIcon.click();
+
+  console.log("Clicked image in row. Waiting for chart to load...");
+  await page.waitForFunction(
+    (institute) => {
+      const nextRow = institute.nextElementSibling;
+      return nextRow && nextRow.querySelector("canvas.marks");
+    },
+    {},
+    institute,
+  );
+  console.log("Chart loaded!");
+
+  await institute.mouse.moveTo(200, 200);
 }
