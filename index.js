@@ -22,7 +22,8 @@ await selectOnlyHCI();
 
 await loadAllRows();
 
-await iterateOverAllInstitutesAndGatherInformation();
+const institutesHciInformation =
+  await iterateOverAllInstitutesAndGatherInformation();
 
 async function loadPage() {
   console.log("Waiting for the page to load...");
@@ -132,7 +133,7 @@ async function iterateOverAllInstitutesAndGatherInformation() {
       (spans) => spans[1].textContent,
     );
 
-    console.log("Gathering information from:", instituteName);
+    console.log("Gathering information from institute:", instituteName);
 
     institutesInformation[instituteName] = await collectInstituteInformation(
       institute,
@@ -141,23 +142,17 @@ async function iterateOverAllInstitutesAndGatherInformation() {
     );
   }
 
-  console.log(institutesInformation);
+  return institutesInformation;
 }
 
 async function collectInstituteInformation(institute, chart, professors) {
   const instituteData = {};
 
   await institute.scrollIntoView();
-  const instituteDataTds = await institute.$$("td");
-  const instituteNameTd = instituteDataTds[1];
 
-  instituteData.total = await getHCICountAndRemoveChart(chart, instituteNameTd);
-
-  console.log("Expanding professor list and waiting for them to load...");
-  const expandIcon = await instituteNameTd.$("td > span");
-  expandIcon.click();
-  await professors.waitForSelector("td > div", { visible: true });
-  console.log("Professor list loaded!");
+  instituteData.total = await getHCICountAndRemoveChart(chart, institute);
+  instituteData.professors =
+    await iterateOverProfessorsAndCollectionInformation(professors, institute);
 
   console.log("Removing institute from the dom");
   await Promise.all([
@@ -169,9 +164,9 @@ async function collectInstituteInformation(institute, chart, professors) {
   return instituteData;
 }
 
-async function getHCICountAndRemoveChart(chart, instituteNameTd) {
+async function getHCICountAndRemoveChart(chart, row) {
   console.log("Clicking chart icon and waiting for chart to load...");
-  const chartIcon = await instituteNameTd.$("span > .chart_icon");
+  const chartIcon = await row.$("td span > .chart_icon");
   await chartIcon.click();
   await chart.waitForSelector("canvas");
   console.log("Chart loaded!");
@@ -218,4 +213,55 @@ async function getHCICountAndRemoveChart(chart, instituteNameTd) {
   } finally {
     await Promise.all([chart.evaluate(removeElement), chart.isHidden()]);
   }
+}
+
+async function iterateOverProfessorsAndCollectionInformation(
+  professors,
+  institute,
+) {
+  console.log("Expanding professor list and waiting for them to load...");
+  const expandIcon = await institute.$("td > span");
+  await expandIcon.click();
+  await professors.isVisible();
+  console.log("Expanded professor list. Now iterating over professors");
+
+  const professorRows = await professors.$$("table > tbody > tr");
+  console.log(`${professorRows / 2} Professors loaded!`);
+
+  const professorsInformation = {};
+
+  for (let i = 0; i < professorRows.length; i += 2) {
+    const professor = professorRows[i];
+    const professorName = await professor.$eval("td small a", getText);
+    console.log("Gathering information from professor:", professorName);
+
+    professorsInformation[professorName] =
+      await collectInformationFromProfessor(professor, professorRows[i + 1]);
+  }
+
+  return professorsInformation;
+}
+
+async function collectInformationFromProfessor(professor, chart) {
+  const hasHCI = await professor.$$eval(".interdisciplinary-area", (areas) =>
+    areas.some((area) => area.textContent === "hci"),
+  );
+
+  let count = 0;
+  if (hasHCI) {
+    count = await getHCICountAndRemoveChart(chart, professor);
+    if (count === 0) {
+      console.error("Count not found where should have been!");
+    }
+  } else {
+    console.log("Does not have hci");
+  }
+
+  await Promise.all([
+    professor.evaluate(removeElement),
+    chart.evaluate(removeElement),
+    professor.isHidden(),
+    chart.isHidden(),
+  ]);
+  return count;
 }
