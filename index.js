@@ -3,6 +3,9 @@ import installMouseHelper from "puppeteer-mouse-helper";
 
 const TIMEOUT = 240 * 1000;
 const SPONSOR_DIALOG_SELECTOR = "#overlay-sponsor";
+const INSTITUTES_SELECTOR = "#ranking > tbody > tr";
+
+const removeElement = (element) => element.remove();
 
 const browser = await puppeteer.launch({ headless: false, timeout: TIMEOUT });
 const [page] = await browser.pages();
@@ -17,20 +20,7 @@ await selectOnlyHCI();
 
 await loadAllRows();
 
-const rows = await page.$$("#ranking tr");
-
-for (let i = 0; i < rows.length; i++) {
-  const institute = rows[i];
-  const tds = await institute.$$("td");
-
-  if (tds.length < 4) {
-    console.log(`Row ${i} skipped (only ${tds.length} <td>s).`);
-    continue;
-  }
-  await collectInstituteInformation(institute);
-
-  break;
-}
+await iterateOverAllInstitutesAndGatherInformation();
 
 async function loadPage() {
   console.log("Waiting for the page to load...");
@@ -88,7 +78,7 @@ async function selectOnlyHCI() {
 async function loadAllRows() {
   console.log("Scrolling down to load more rows...");
   const initialRowCount = await page.$$eval(
-    "#ranking tr",
+    INSTITUTES_SELECTOR,
     (rows) => rows.length,
   );
   console.log("Initial row count:", initialRowCount);
@@ -98,19 +88,25 @@ async function loadAllRows() {
     tableParent.scrollTop = tableParent.scrollHeight;
   });
 
-  let updatedRowCount = initialRowCount;
-
   console.log("Waiting for more rows to load...");
   await page.waitForFunction(
-    (initialRowCount) => {
-      updatedRowCount = document.querySelectorAll("#ranking tr").length;
-      return updatedRowCount > initialRowCount;
+    (initialRowCount, INSTITUTES_SELECTOR) => {
+      return (
+        document.querySelectorAll(INSTITUTES_SELECTOR).length > initialRowCount
+      );
     },
     undefined,
     initialRowCount,
+    INSTITUTES_SELECTOR,
   );
 
-  console.log(`All ${updatedRowCount} rows loaded!`);
+  const updatedRowCount = await page.$$eval(
+    INSTITUTES_SELECTOR,
+    (rows) => rows.length,
+  );
+  console.log(
+    `All ${updatedRowCount} rows = ${updatedRowCount / 3} institutes loaded!`,
+  );
 
   console.log("Scrolling to top...");
   await page.evaluate(() => {
@@ -120,44 +116,95 @@ async function loadAllRows() {
   });
 }
 
-async function collectInstituteInformation(institute) {
-  const tds = await institute.$$("td");
-  const secondTd = tds[1];
-  const chartIcon = await secondTd.$('img[alt="closed chart"]');
-  chartIcon.click();
+async function iterateOverAllInstitutesAndGatherInformation() {
+  const institutes = await page.$$("#ranking > tbody > tr");
 
-  console.log("Clicked image in row. Waiting for chart to load...");
-  await page.waitForFunction(
-    (institute) => {
-      const found = !!institute.nextElementSibling?.querySelector("canvas");
-      console.log("Chart found:", found);
-      return found;
-    },
-    undefined,
-    institute,
-  );
+  for (let i = 0; i < institutes.length; i += 3) {
+    const institute = institutes[i];
+    const chart = institutes[i + 1];
+    const professors = institutes[i + 2];
+
+    const instituteName = await institute.$$eval(
+      "td span",
+      (spans) => spans[1].textContent,
+    );
+
+    console.log("Gathering information from:", instituteName);
+
+    await collectInstituteInformation(institute, chart, professors);
+  }
+}
+
+async function collectInstituteInformation(institute, chart, professors) {
+  await institute.scrollIntoView();
+  const instituteDataTds = await institute.$$("td");
+  const instituteNameTd = instituteDataTds[1];
+
+  console.log("Clicking chart icon and waiting for chart to load...");
+  const chartIcon = await instituteNameTd.$("span > .chart_icon");
+  await chartIcon.click();
+  await chart.waitForSelector("canvas");
   console.log("Chart loaded!");
 
-  const chartInfo = await page.$eval("canvas", (canvas) => {
-    const boundingClientRect = canvas.getBoundingClientRect();
-    console.log({
-      boundingClientRect,
-    });
-    return {
-      width: boundingClientRect.width,
-      height: boundingClientRect.height,
-      left: boundingClientRect.left,
-      top: boundingClientRect.top,
-    };
-  });
+  console.log("Expanding professor list and waiting for them to load...");
+  const expandIcon = await instituteNameTd.$("td > span");
+  expandIcon.click();
+  await professors.waitForSelector("td > div", { visible: true });
+  console.log("Professor list loaded!");
 
-  console.log(chartInfo);
+  console.log("Removing institute from the dom");
+  await Promise.all([
+    institute.evaluate(removeElement),
+    chart.evaluate(removeElement),
+    professors.evaluate(removeElement),
+  ]);
 
-  // target pixel: 435, 63
+  await Promise.all([
+    institute.isHidden(),
+    chart.isHidden(),
+    professors.isHidden(),
+  ]);
 
-  // Move mouse to the calculated position
-  await page.mouse.move(
-    chartInfo.left + 435,
-    chartInfo.top + (chartInfo.height - 63),
-  );
+  // const chartInfo = await page.$eval("canvas", (canvas) => {
+  //   const boundingClientRect = canvas.getBoundingClientRect();
+  //   console.log({
+  //     boundingClientRect,
+  //   });
+  //   return {
+  //     width: boundingClientRect.width,
+  //     height: boundingClientRect.height,
+  //     left: boundingClientRect.left,
+  //     top: boundingClientRect.top,
+  //   };
+  // });
+
+  // console.log(
+  //   "Moving mouse cursor to appropriate position in the chart for HCI tooltip",
+  // );
+  // await page.mouse.move(
+  //   chartInfo.left + 435,
+  //   chartInfo.top + (chartInfo.height - 63),
+  // );
+  //
+  // console.log("Closing the chart");
+  // await clickChartIcon();
+  // console.log("Closed chart");
+
+  // console.log("Removing the chart");
+  // await institute.evaluate((el) => el.remove());
 }
+
+// <div id="vg-tooltip-element" className="vg-tooltip visible light-theme" style="top: 360px; left: 1110px">
+//   <table>
+//     <tbody>
+//     <tr>
+//       <td className="key">Area:</td>
+//       <td className="value">HCI</td>
+//     </tr>
+//     <tr>
+//       <td className="key">Count:</td>
+//       <td className="value">536</td>
+//     </tr>
+//     </tbody>
+//   </table>
+// </div>
