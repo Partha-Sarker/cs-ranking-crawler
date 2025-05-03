@@ -189,9 +189,11 @@ async function getHCICountAndRemoveChart(chart, instituteNameTd) {
   console.log(
     "Moving mouse cursor to appropriate position in the chart for HCI tooltip",
   );
+  const bottomOffset = 63;
+
   await page.mouse.move(
-    chartInfo.left + 434,
-    chartInfo.top + (chartInfo.height - 63),
+    chartInfo.left + chartInfo.width * 0.92,
+    chartInfo.top + (chartInfo.height - bottomOffset),
   );
   try {
     const [interdisciplinaryArea, count] = await Promise.all([
@@ -201,7 +203,16 @@ async function getHCICountAndRemoveChart(chart, instituteNameTd) {
         getNumber,
       ),
     ]);
-    return interdisciplinaryArea === "HCI" ? count : 0;
+
+    const tooltip = await page.$("#vg-tooltip-element");
+    await Promise.all([tooltip.evaluate(removeElement), tooltip.isHidden()]);
+
+    if (interdisciplinaryArea !== "HCI") {
+      console.log("Invalid area detected");
+      return 0;
+    }
+
+    return count;
   } catch (e) {
     return 0;
   } finally {
