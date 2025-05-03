@@ -169,3 +169,4 @@ __pycache__
 compile_commands.json
 
 ./.idea
+cs-ranking*.json
