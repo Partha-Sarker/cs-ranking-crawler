@@ -131,7 +131,15 @@ async function iterateOverAllInstitutesAndGatherInformation() {
     );
   }
 
-  return institutesInformation;
+  return Object.keys(institutesInformation)
+    .sort(
+      (i1, i2) =>
+        institutesInformation[i2].total - institutesInformation[i1].total,
+    )
+    .reduce((orderedInstitutesInformation, i) => {
+      orderedInstitutesInformation[i] = institutesInformation[i];
+      return orderedInstitutesInformation;
+    }, {});
 }
 
 async function collectInstituteInformation(institute, chart, professors) {
@@ -228,7 +236,12 @@ async function iterateOverProfessorsAndCollectionInformation(
       await collectInformationFromProfessor(professor, professorRows[i + 1]);
   }
 
-  return professorsInformation;
+  return Object.keys(professorsInformation)
+    .sort((p1, p2) => professorsInformation[p2] - professorsInformation[p1])
+    .reduce((orderedProfessorsInformation, p) => {
+      orderedProfessorsInformation[p] = professorsInformation[p];
+      return orderedProfessorsInformation;
+    }, {});
 }
 
 async function collectInformationFromProfessor(professor, chart) {
@@ -266,6 +279,8 @@ async function startScraping() {
 
   const institutesHciInformation =
     await iterateOverAllInstitutesAndGatherInformation();
+
+  console.log(institutesHciInformation);
 }
 
 await startScraping();
