@@ -249,19 +249,7 @@ async function iterateOverProfessorsAndCollectionInformation(
 }
 
 async function collectInformationFromProfessor(professor, chart) {
-  const hasHCI = await professor.$$eval(".interdisciplinary-area", (areas) =>
-    areas.some((area) => area.textContent === "hci"),
-  );
-
-  let count = 0;
-  if (hasHCI) {
-    count = await getHCICountAndRemoveChart(chart, professor);
-    if (count === 0) {
-      console.error("Count not found where should have been!");
-    }
-  } else {
-    console.log("Does not have hci");
-  }
+  const count = await getHCICountAndRemoveChart(chart, professor);
 
   await Promise.all([
     professor.evaluate(removeElement),
@@ -269,6 +257,7 @@ async function collectInformationFromProfessor(professor, chart) {
     professor.isHidden(),
     chart.isHidden(),
   ]);
+
   return count;
 }
 
