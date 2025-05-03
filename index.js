@@ -1,5 +1,6 @@
 import puppeteer from "puppeteer";
 import installMouseHelper from "puppeteer-mouse-helper";
+import { writeFile } from "fs";
 
 const TIMEOUT = 240 * 1000;
 const SPONSOR_DIALOG_SELECTOR = "#overlay-sponsor";
@@ -280,7 +281,18 @@ async function startScraping() {
   const institutesHciInformation =
     await iterateOverAllInstitutesAndGatherInformation();
 
-  console.log(institutesHciInformation);
+  writeFile(
+    "cs-ranking-hci-old.json",
+    JSON.stringify(institutesHciInformation, null, 2),
+    "utf8",
+    (err) => {
+      if (err) {
+        console.error("Error writing to file", err);
+      } else {
+        console.log("Data written to file");
+      }
+    },
+  );
 }
 
 await startScraping();
