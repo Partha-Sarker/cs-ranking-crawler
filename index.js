@@ -233,8 +233,11 @@ async function iterateOverProfessorsAndCollectionInformation(
     const professorName = await professor.$eval("td small a", getText);
     console.log("Gathering information from professor:", professorName);
 
-    professorsInformation[professorName] =
-      await collectInformationFromProfessor(professor, professorRows[i + 1]);
+    const count = await collectInformationFromProfessor(
+      professor,
+      professorRows[i + 1],
+    );
+    if (count) professorsInformation[professorName] = count;
   }
 
   return Object.keys(professorsInformation)
