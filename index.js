@@ -6,6 +6,8 @@ const SPONSOR_DIALOG_SELECTOR = "#overlay-sponsor";
 const INSTITUTES_SELECTOR = "#ranking > tbody > tr";
 
 const removeElement = (element) => element.remove();
+const getNumber = (element) => Number(element.textContent) || 0;
+const getText = (element) => element.textContent;
 
 const browser = await puppeteer.launch({ headless: false, timeout: TIMEOUT });
 const [page] = await browser.pages();
@@ -118,6 +120,7 @@ async function loadAllRows() {
 
 async function iterateOverAllInstitutesAndGatherInformation() {
   const institutes = await page.$$("#ranking > tbody > tr");
+  const institutesInformation = {};
 
   for (let i = 0; i < institutes.length; i += 3) {
     const institute = institutes[i];
@@ -131,20 +134,24 @@ async function iterateOverAllInstitutesAndGatherInformation() {
 
     console.log("Gathering information from:", instituteName);
 
-    await collectInstituteInformation(institute, chart, professors);
+    institutesInformation[instituteName] = await collectInstituteInformation(
+      institute,
+      chart,
+      professors,
+    );
   }
+
+  console.log(institutesInformation);
 }
 
 async function collectInstituteInformation(institute, chart, professors) {
+  const instituteData = {};
+
   await institute.scrollIntoView();
   const instituteDataTds = await institute.$$("td");
   const instituteNameTd = instituteDataTds[1];
 
-  console.log("Clicking chart icon and waiting for chart to load...");
-  const chartIcon = await instituteNameTd.$("span > .chart_icon");
-  await chartIcon.click();
-  await chart.waitForSelector("canvas");
-  console.log("Chart loaded!");
+  instituteData.total = await getHCICountAndRemoveChart(chart, instituteNameTd);
 
   console.log("Expanding professor list and waiting for them to load...");
   const expandIcon = await instituteNameTd.$("td > span");
@@ -155,56 +162,49 @@ async function collectInstituteInformation(institute, chart, professors) {
   console.log("Removing institute from the dom");
   await Promise.all([
     institute.evaluate(removeElement),
-    chart.evaluate(removeElement),
     professors.evaluate(removeElement),
   ]);
 
-  await Promise.all([
-    institute.isHidden(),
-    chart.isHidden(),
-    professors.isHidden(),
-  ]);
-
-  // const chartInfo = await page.$eval("canvas", (canvas) => {
-  //   const boundingClientRect = canvas.getBoundingClientRect();
-  //   console.log({
-  //     boundingClientRect,
-  //   });
-  //   return {
-  //     width: boundingClientRect.width,
-  //     height: boundingClientRect.height,
-  //     left: boundingClientRect.left,
-  //     top: boundingClientRect.top,
-  //   };
-  // });
-
-  // console.log(
-  //   "Moving mouse cursor to appropriate position in the chart for HCI tooltip",
-  // );
-  // await page.mouse.move(
-  //   chartInfo.left + 435,
-  //   chartInfo.top + (chartInfo.height - 63),
-  // );
-  //
-  // console.log("Closing the chart");
-  // await clickChartIcon();
-  // console.log("Closed chart");
-
-  // console.log("Removing the chart");
-  // await institute.evaluate((el) => el.remove());
+  await Promise.all([institute.isHidden(), professors.isHidden()]);
+  return instituteData;
 }
 
-// <div id="vg-tooltip-element" className="vg-tooltip visible light-theme" style="top: 360px; left: 1110px">
-//   <table>
-//     <tbody>
-//     <tr>
-//       <td className="key">Area:</td>
-//       <td className="value">HCI</td>
-//     </tr>
-//     <tr>
-//       <td className="key">Count:</td>
-//       <td className="value">536</td>
-//     </tr>
-//     </tbody>
-//   </table>
-// </div>
+async function getHCICountAndRemoveChart(chart, instituteNameTd) {
+  console.log("Clicking chart icon and waiting for chart to load...");
+  const chartIcon = await instituteNameTd.$("span > .chart_icon");
+  await chartIcon.click();
+  await chart.waitForSelector("canvas");
+  console.log("Chart loaded!");
+
+  const chartInfo = await chart.$eval("canvas", (canvas) => {
+    const boundingClientRect = canvas.getBoundingClientRect();
+    return {
+      width: boundingClientRect.width,
+      height: boundingClientRect.height,
+      left: boundingClientRect.left,
+      top: boundingClientRect.top,
+    };
+  });
+
+  console.log(
+    "Moving mouse cursor to appropriate position in the chart for HCI tooltip",
+  );
+  await page.mouse.move(
+    chartInfo.left + 434,
+    chartInfo.top + (chartInfo.height - 63),
+  );
+  try {
+    const [interdisciplinaryArea, count] = await Promise.all([
+      page.$eval("#vg-tooltip-element.visible tr .value", getText),
+      page.$eval(
+        "#vg-tooltip-element.visible tr:nth-child(2) .value",
+        getNumber,
+      ),
+    ]);
+    return interdisciplinaryArea === "HCI" ? count : 0;
+  } catch (e) {
+    return 0;
+  } finally {
+    await Promise.all([chart.evaluate(removeElement), chart.isHidden()]);
+  }
+}
