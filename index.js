@@ -14,17 +14,6 @@ const [page] = await browser.pages();
 await page.setViewport({ width: 1280, height: 720 });
 await installMouseHelper(page, undefined, "width: 50px; height: 50px;");
 
-await loadPage();
-
-await exitSponsor();
-
-await selectOnlyHCI();
-
-await loadAllRows();
-
-const institutesHciInformation =
-  await iterateOverAllInstitutesAndGatherInformation();
-
 async function loadPage() {
   console.log("Waiting for the page to load...");
   await page.goto("https://csrankings.org/", {
@@ -265,3 +254,18 @@ async function collectInformationFromProfessor(professor, chart) {
   ]);
   return count;
 }
+
+async function startScraping() {
+  await loadPage();
+
+  await exitSponsor();
+
+  await selectOnlyHCI();
+
+  await loadAllRows();
+
+  const institutesHciInformation =
+    await iterateOverAllInstitutesAndGatherInformation();
+}
+
+await startScraping();
