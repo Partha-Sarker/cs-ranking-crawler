@@ -125,13 +125,14 @@ async function iterateOverAllInstitutesAndGatherInformation() {
 
     console.log("Gathering information from institute:", instituteName);
 
-    const count = await collectInstituteInformation(
+    const instituteInformation = await collectInstituteInformation(
       institute,
       chart,
       professors,
     );
 
-    if (count) institutesInformation[instituteName] = count;
+    if (instituteInformation.total)
+      institutesInformation[instituteName] = instituteInformation;
   }
 
   return Object.keys(institutesInformation)
@@ -148,8 +149,7 @@ async function iterateOverAllInstitutesAndGatherInformation() {
 async function collectInstituteInformation(institute, chart, professors) {
   const instituteData = {};
 
-  await institute.scrollIntoView();
-
+  instituteData.rank = await institute.$eval("td", getNumber);
   instituteData.total = await getHCICountAndRemoveChart(chart, institute);
   if (instituteData.total) {
     instituteData.professors =
@@ -281,7 +281,7 @@ async function scrapCsRanking() {
     await iterateOverAllInstitutesAndGatherInformation();
 
   writeFile(
-    "cs-ranking-hci-old.json",
+    "cs-ranking-hci.json",
     JSON.stringify(institutesHciInformation, null, 2),
     "utf8",
     (err) => {
