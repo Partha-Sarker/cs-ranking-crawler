@@ -125,11 +125,13 @@ async function iterateOverAllInstitutesAndGatherInformation() {
 
     console.log("Gathering information from institute:", instituteName);
 
-    institutesInformation[instituteName] = await collectInstituteInformation(
+    const count = await collectInstituteInformation(
       institute,
       chart,
       professors,
     );
+
+    if (count) institutesInformation[instituteName] = count;
   }
 
   return Object.keys(institutesInformation)
@@ -149,8 +151,13 @@ async function collectInstituteInformation(institute, chart, professors) {
   await institute.scrollIntoView();
 
   instituteData.total = await getHCICountAndRemoveChart(chart, institute);
-  instituteData.professors =
-    await iterateOverProfessorsAndCollectionInformation(professors, institute);
+  if (instituteData.total) {
+    instituteData.professors =
+      await iterateOverProfessorsAndCollectionInformation(
+        professors,
+        institute,
+      );
+  }
 
   console.log("Removing institute from the dom");
   await Promise.all([
@@ -261,7 +268,7 @@ async function collectInformationFromProfessor(professor, chart) {
   return count;
 }
 
-async function startScraping() {
+async function scrapCsRanking() {
   await loadPage();
 
   await exitSponsor();
@@ -285,6 +292,8 @@ async function startScraping() {
       }
     },
   );
+
+  await browser.close();
 }
 
-await startScraping();
+await scrapCsRanking();
