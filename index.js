@@ -45,29 +45,6 @@ async function exitSponsor() {
   }
 }
 
-async function selectOnlyHCI() {
-  console.log(
-    "Turning off all interdisciplinary areas and wait until all the checkbox is unchecked...",
-  );
-  await page.click("#other_areas_off");
-
-  await page.waitForFunction(() => {
-    const checkbox = document.querySelector("#chi");
-    return checkbox && checkbox.checked === false;
-  });
-  console.log("All areas are unchecked!");
-
-  console.log("Turning on HCI and wait until HCI is checked...");
-  await page.click("#chi");
-
-  await page.waitForFunction(() => {
-    const checkbox = document.querySelector("#chi");
-    return checkbox && checkbox.checked === true;
-  });
-
-  console.log("HCI is checked!");
-}
-
 async function loadAllRows() {
   console.log("Scrolling down to load more rows...");
   const initialRowCount = await page.$$eval(
@@ -272,8 +249,6 @@ async function scrapCsRanking() {
   await loadPage();
 
   await exitSponsor();
-
-  await selectOnlyHCI();
 
   await loadAllRows();
 
