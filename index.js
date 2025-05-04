@@ -245,19 +245,10 @@ async function collectInformationFromProfessor(professor, chart) {
   return count;
 }
 
-async function scrapCsRanking() {
-  await loadPage();
-
-  await exitSponsor();
-
-  await loadAllRows();
-
-  const institutesHciInformation =
-    await iterateOverAllInstitutesAndGatherInformation();
-
+function saveFile(rankingByUniversity, fileName) {
   writeFile(
-    "cs-ranking-hci.json",
-    JSON.stringify(institutesHciInformation, null, 2),
+    fileName,
+    JSON.stringify(rankingByUniversity, null, 2),
     "utf8",
     (err) => {
       if (err) {
@@ -267,6 +258,31 @@ async function scrapCsRanking() {
       }
     },
   );
+}
+
+async function scrapCsRanking() {
+  await loadPage();
+
+  await exitSponsor();
+
+  await loadAllRows();
+
+  const rankingByUniversity =
+    await iterateOverAllInstitutesAndGatherInformation();
+
+  const rankingByProfessor = Object.entries(rankingByUniversity)
+    .flatMap(([university, { rank, professors }]) =>
+      Object.entries(professors).map(([professor, count]) => ({
+        rank,
+        university,
+        professor,
+        count,
+      })),
+    )
+    .sort((p1, p2) => p2.count - p1.count);
+
+  saveFile(rankingByUniversity, "cs-ranking-hci-by-university.json");
+  saveFile(rankingByProfessor, "cs-ranking-hci-by-professor.json");
 
   await browser.close();
 }
