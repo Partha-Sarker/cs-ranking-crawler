@@ -2,6 +2,8 @@ import puppeteer from "puppeteer";
 import installMouseHelper from "puppeteer-mouse-helper";
 import { writeFile } from "fs";
 
+const FROM_YEAR = 2023;
+
 const TIMEOUT = 240 * 1000;
 const SPONSOR_DIALOG_SELECTOR = "#overlay-sponsor";
 const INSTITUTES_SELECTOR = "#ranking > tbody > tr";
@@ -10,7 +12,7 @@ const removeElement = (element) => element.remove();
 const getNumber = (element) => Number(element.textContent) || 0;
 const getText = (element) => element.textContent;
 
-const browser = await puppeteer.launch({ headless: false, timeout: TIMEOUT });
+const browser = await puppeteer.launch({ headless: true, timeout: TIMEOUT });
 const [page] = await browser.pages();
 await page.setViewport({ width: 1280, height: 720 });
 await installMouseHelper(page, undefined, "width: 50px; height: 50px;");
@@ -84,6 +86,10 @@ async function loadAllRows() {
     const tableParent = document.querySelector("#ranking").parentElement;
     tableParent.scrollTop = 0;
   });
+}
+
+async function selectFromYear() {
+  await page.select("#fromyear", FROM_YEAR.toString());
 }
 
 async function iterateOverAllInstitutesAndGatherInformation() {
@@ -266,6 +272,8 @@ async function scrapCsRanking() {
   await exitSponsor();
 
   await loadAllRows();
+
+  await selectFromYear();
 
   const rankingByUniversity =
     await iterateOverAllInstitutesAndGatherInformation();
